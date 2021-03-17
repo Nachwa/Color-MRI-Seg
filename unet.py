@@ -59,9 +59,7 @@ class Up(nn.Module):
 
         x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
                         diffY // 2, diffY - diffY // 2])
-        # if you have padding issues, see
-        # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
-        # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
+                        
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
@@ -73,21 +71,10 @@ class OutConv(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
-class FFunction(nn.Module):
-    def __init__(self, in_channels, out_channels,kernel_size=(1,3)):
-        super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=(0, 1))
-
-    def forward(self,x):
-        return self.conv(x)
 
 class UNet(nn.Module):
-    def __init__(self, n_channels, n_classes, device, bilinear=True):
-        super(UNet, self).__init__()
-        self.device  = device
-        self.n_channels = n_channels
-        self.n_classes = n_classes
-        self.bilinear = bilinear
+    def __init__(self, n_channels, n_classes, bilinear=True):
+        super().__init__()
         
         self.inc = DoubleConv(n_channels, 64)
         self.down1 = Down(64, 128)
@@ -102,10 +89,8 @@ class UNet(nn.Module):
         self.up3 = Up(256, 128, bilinear)
         self.up4 = Up(128, 64 * factor, bilinear)
         self.outc = OutConv(64, n_classes)
-        self.fFunct = FFunction(n_classes,1,(1,3))
 
     def forward(self, x):
-        x = x.view(-1, x.shape[2], x.shape[3], x.shape[4])
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
@@ -117,7 +102,5 @@ class UNet(nn.Module):
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
-        x = self.outc(x)
-        x = self.fFunct(x)
-
-        return torch.sigmoid(x)
+        logits = self.outc(x)
+        return logits

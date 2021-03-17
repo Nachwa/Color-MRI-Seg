@@ -1,66 +1,30 @@
-from modelT import UNet
-from brats_dataset import Brats_db
-#from brats_dataset import Brats_db_one_modality
 import torch
+from torch.utils.data import DataLoader
 import time
 from tqdm import tqdm
-#from matplotlib import pyplot
-import numpy as np
 
+from model import ColorProjUNet
+from brats_db import Brats_db
+from utils import compute_metric
+from opts import args
 
-num_classes  = 2
-threshold = 0.5 
-
-def compute_metric(inputs, targets, device, metric_phase, smooth=1):
-    targetsUnique = list(range(num_classes))
-    inputs = inputs.view(-1).to(device)
-    targets = targets.view(-1).to(device)
-
-    metrics = {'dice': [], 
-                'iou': [], 
-                'prec': [], 
-                'rcll' : []}
-
-    for i,label in enumerate(targetsUnique):
-        inputs_i  = inputs==label
-        targets_i = targets==label
-
-        intersection = (inputs_i*targets_i).sum()
-        intersection = intersection.item()
-        union = inputs_i.sum() + targets_i.sum() - intersection
-        union = union.item()
-
-        dice  = 2.0 * intersection / (inputs_i.sum() + targets_i.sum() + smooth).item()
-        iou   = intersection / (union + smooth)
-
-        precision = intersection / (targets_i.sum() + smooth).item()
-        recall    = intersection / (inputs_i.sum() + smooth).item() 
-
-        metrics['dice'].append(dice)
-        metrics['iou'].append(iou)
-        metrics['rcll'].append(recall)
-        metrics['prec'].append(precision)
-    
-    for m in metrics:
-        if m in metric_phase:
-            metrics[m] = [x + y for x, y in zip(metrics[m], metric_phase[m])]
-    ''' to compute mean
-    for m in metrics:
-        mean_metric = metrics[m].mean()
-        metrics[m].append(mean_metric)
-    '''
-    return metrics
 
 def test(model, data, device=None):
     print('Testing is starting')
     since = time.time()
     metrics_dict = {'test': {}}
+
+    unpadding = (22, 22, 22, 22)
     with torch.no_grad():
         for inputs, labels in tqdm(data, leave=False):
             inputs = inputs.to(device)
-            labels = labels.to(device)
+            labels = labels.to(device).unsqueeze(0)
+            labels = labels.contiguous()
 
-            output = model(inputs)#output is between 0, 1
+            outputs = model(inputs) 
+            outputs = outputs[:, :, :, unpadding[0]:-unpadding[1], unpadding[2]:-unpadding[3]]
+            outputs = outputs.contiguous()
+            outputs = torch.sigmoid(outputs)
             predictions = torch.zeros_like(output, dtype=torch.long)
             predictions[output> threshold] = 1 
             predictions[output<=threshold] = 0
@@ -76,24 +40,30 @@ def test(model, data, device=None):
     print(f'{str_out} \n')
 
     with open('checkpoints/test-metrics.txt', 'a') as f:
-        #if epoch == 0: f.write(' '.join(sys.argv) + '\n' ) #to save the running command
         f.write(f' test:% \n {str_out} \n')
 
     time_elapsed = time.time() - since
     print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    #return outputs
 
 
 if __name__ == '__main__':
+    num_classes  = 2
+    detection_threshold = 0.5
+    num_projections = 12
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    unet_mdl = UNet(n_channels=3, n_classes=num_classes, device=device)
-    unet_mdl.to(device)
+    data_dir = args.db_dir 
+    
 
-    testDL = torch.utils.data.DataLoader(Brats_db(subset_name='test'), num_workers=32, batch_size=1)
-    #testDL = torch.utils.data.DataLoader(Brats_slice(subset_name='test'), num_workers=64, batch_size=2)
-    #testDL = torch.utils.data.DataLoader(Brats_db_one_modality(modality='t1gd',subset_name='test'), num_workers=32, batch_size=1)
+    # create model
+    model = ColorProjUNet(n_classes=num_classes, device=device)
+    model.to(device)
 
-    unet_mdl.load_state_dict(torch.load(f'checkpoints/best_mdl.pth',map_location=device))
-    unet_mdl.eval()
+    testDB = Brats_db(subset_name='test', root_dir=data_dir, num_Projections=num_projections, save_batches=args.save_batches)
+    testDL = DataLoader(testDB, num_workers=0, batch_size=1)
 
-    test(unet_mdl,testDL,device=device)
+    assert (args.checkpoint), "Please specify the checkpoint file to evaluate"
+    
+    model.load_state_dict(torch.load(f'{args.checkpoint}',map_location=device))
+    model.eval()
+
+    test(model, testDL, device=device)
