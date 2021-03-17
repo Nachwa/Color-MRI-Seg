@@ -2,7 +2,9 @@
 
 This repo contains the implementation code for our paper "Color-based Fusion of MRI Modalities for Brain Tumor Segmentation" presented at MICAD2021.
 
-
+<p align="center">
+<img width="700"  src="color_fusion.png">
+</p>
 
 ## Prerequisites: 
 * Pytorch (tested on v. 1.7.1)
