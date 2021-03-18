@@ -37,7 +37,7 @@ def train(model, criterion1, optimizer, scheduler, dataloaders, num_epoch=1000, 
                 labels = labels.contiguous()
 
                 with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs) #output is between 0, 1
+                    outputs = model(inputs) 
                     outputs = outputs.squeeze() #(155, 240, 240)
                     outputs = outputs[:, unpadding[0]:-unpadding[1], unpadding[2]:-unpadding[3]]
                     outputs = outputs.contiguous()
@@ -56,8 +56,8 @@ def train(model, criterion1, optimizer, scheduler, dataloaders, num_epoch=1000, 
                     
                     optimizer.zero_grad()
 
-                    predictions = torch.zeros(outputs.shape, dtype=torch.long, device=device)
                     out_data = torch.sigmoid(outputs).detach().data
+                    predictions = torch.zeros_like(outputs, dtype=torch.long, device=device)
                     predictions[out_data> detection_threshold] = 1 
                     predictions[out_data<=detection_threshold] = 0
                     

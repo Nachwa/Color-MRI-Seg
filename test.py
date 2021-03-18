@@ -18,16 +18,21 @@ def test(model, data, device=None):
     with torch.no_grad():
         for inputs, labels in tqdm(data, leave=False):
             inputs = inputs.to(device)
-            labels = labels.to(device).unsqueeze(0)
+            labels = labels.to(device).squeeze()
             labels = labels.contiguous()
 
             outputs = model(inputs) 
-            outputs = outputs[:, :, :, unpadding[0]:-unpadding[1], unpadding[2]:-unpadding[3]]
+            outputs = outputs.squeeze()
+            outputs = outputs[:, unpadding[0]:-unpadding[1], unpadding[2]:-unpadding[3]]
             outputs = outputs.contiguous()
+
+            outputs = outputs.unsqueeze(0)
+            labels  = labels.unsqueeze(0)
+
             outputs = torch.sigmoid(outputs)
-            predictions = torch.zeros_like(output, dtype=torch.long)
-            predictions[output> threshold] = 1 
-            predictions[output<=threshold] = 0
+            predictions = torch.zeros_like(outputs, dtype=torch.long)
+            predictions[outputs> detection_threshold] = 1 
+            predictions[outputs<=detection_threshold] = 0
 
             metrics_dict['test'] = compute_metric(predictions, labels, device, metrics_dict['test']) 
 
