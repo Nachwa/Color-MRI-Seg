@@ -33,4 +33,5 @@ python test.py  --db_dir ROOT_PATH_BRATS
 
 
 ## Paper: 
-The paper will be presentated at MICAD2021 
+The paper will be presentated at MICAD2021 [Video presentation](https://youtu.be/e11A7ikxS9c?t=3337), 
+[Paper](https://hal.archives-ouvertes.fr/hal-03174069/document)
